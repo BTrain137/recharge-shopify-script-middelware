@@ -10,3 +10,23 @@ Content-Type: application/json
 {
   "hello": "world"
 }
+
+###
+# Testing hosted webhook
+POST {{$dotenv HEROKU_ENDPOINT}}/webhook/recharge/order-created
+Content-Type: application/json
+
+< ./order.json
+
+###
+# Add Webhook
+POST https://api.rechargeapps.com/webhooks
+Content-Type: application/json
+X-Recharge-Access-Token: {{$dotenv RECHARGE_ACCESS_TOKEN}}
+Accept: application/json
+
+{
+	"address": "{{$dotenv HEROKU_ENDPOINT}}/webhook/recharge/order-created",
+	"topic": "order/created"
+}
+
