@@ -1,0 +1,12 @@
+### 
+# Test API routes
+GET {{$dotenv HEROKU_ENDPOINT}}/api/hello-world
+
+###
+# Test webhook routes
+POST {{$dotenv HEROKU_ENDPOINT}}/webhook/hello-world
+Content-Type: application/json
+
+{
+  "hello": "world"
+}
