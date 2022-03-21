@@ -1,0 +1,6 @@
+###
+# Order created
+POST http://localhost:3001/webhook/recharge/order-created
+Content-Type: application/json
+
+< ./order.json
