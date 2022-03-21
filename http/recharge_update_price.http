@@ -1,0 +1,8 @@
+PUT https://api.rechargeapps.com/subscriptions/228290373
+Content-Type: application/json
+X-Recharge-Access-Token: {{$dotenv RECHARGE_ACCESS_TOKEN}}
+Accept: application/json
+
+{
+  "price": 11.16
+}
