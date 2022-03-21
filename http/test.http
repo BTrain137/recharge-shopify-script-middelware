@@ -1,0 +1,12 @@
+### 
+# Test API routes
+GET http://localhost:3001/api/hello-world
+
+###
+# Test webhook routes
+POST http://localhost:3001/webhook/hello-world
+Content-Type: application/json
+
+{
+  "hello": "world"
+}
