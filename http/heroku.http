@@ -30,3 +30,17 @@ Accept: application/json
 	"topic": "order/created"
 }
 
+###
+# List webhooks
+GET https://api.rechargeapps.com/webhooks
+Content-Type: application/json
+X-Recharge-Access-Token: {{$dotenv RECHARGE_ACCESS_TOKEN}}
+Accept: application/json
+
+###
+# List webhooks
+DELETE https://api.rechargeapps.com/webhooks/1174398
+Content-Type: application/json
+X-Recharge-Access-Token: {{$dotenv RECHARGE_ACCESS_TOKEN}}
+Accept: application/json
+
