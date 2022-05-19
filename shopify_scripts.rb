@@ -1,164 +1,50 @@
-# Set empty children_products hash
-
-bundle_groups = {}
-
-
-# Loop over all items in cart to find parent bundle and create bundle_groups hash
-def getProductIds(product, group)
-  ids = []
-  for tag in product.tags
-    if tag.include?(group)
-      id = tag.split('::').last
-      ids.push(id)
-    end
-  end
-  return ids
-end
-
-Input.cart.line_items.each do |line_item|
-  product = line_item.variant.product
-  next if line_item.properties["bundle_id"].nil? or line_item.properties["bundle_type"] != "parent"
-  bundle_id = line_item.properties["bundle_id"]
-  bundle_groups["#{bundle_id}"] = {}
-
-  for tag in product.tags
-    if tag.include?("_qty::")
-      bundle_group = tag.split("_qty::").first
-      _tag = tag.split("::")
-
-      bundle_groups["#{bundle_id}"]["#{bundle_group}"] = {
-        "qty" => _tag.last.to_i,
-        "ids" => getProductIds(product, "#{bundle_group}_id")
-      }
-    end
-  end
-end
-
-
-# Loop over all items again to apply available child product discounts
-Input.cart.line_items.each do |line_item|
-  product = line_item.variant.product
-  next if line_item.properties["bundle_id"].nil?
-
-  product_id = product.id.to_s
-  
-  bundle_groups.keys.each do |key|
-    next unless key === line_item.properties["bundle_id"].to_s
-
-    bundle_id = line_item.properties["bundle_id"]
-    bundle_groups["#{bundle_id}"].keys.each do |key|
-      group = bundle_groups["#{bundle_id}"][key]
-
-      if group["ids"].include?(product_id)
-        qty = group["qty"]
-
-        if qty > 0
-          if line_item.quantity > qty
-            new_line_item = line_item.split(take: qty)
-            new_line_item.change_line_price(Money.new(cents: 0), message: "Included")
-            Input.cart.line_items << new_line_item
-            quantity_removed = qty
-          else
-            line_item.change_line_price(Money.new(cents: 0), message: "Included")
-            quantity_removed = line_item.quantity
-          end
-
-          bundle_groups["#{bundle_id}"][key]["qty"] = bundle_groups["#{bundle_id}"][key]["qty"] - quantity_removed
-        end
-      end
-    end
-  end
-end
-
 PRODUCT_DISCOUNT_TIERS = [
   {
     product_selector_match_type: :include,
-    product_selector_type: :sku_unit_size,
-    product_selectors: ["subscription"],
+    product_selector_type: :properties,
+    product_selectors: ["Build A Box"],
+		product_selectors_key: "_bundle",
     tiers: [
       {
-        unit_size: 1,
-        discount_type: :exact,
-        discount_amount: 14.95,
-        discount_message: 'Price Per Bar $2.99',
+        threshold: 50,
+        discount_type: :percent,
+        discount_amount: 5,
+        discount_message: 'Build A Box Bundle 5% OFF',
       },
       {
-        unit_size: 2,
-        discount_type: :exact,
-        discount_amount: 14.95,
-        discount_message: 'Price Per Bar $2.99',
-      },
-      {
-        unit_size: 3,
-        discount_type: :exact,
-        discount_amount: 12.65,
-        discount_message: 'Saved 15% Price Per Bar $2.53',
-      },
-      {
-        unit_size: 4,
-        discount_type: :exact,
-        discount_amount: 12.70,
-        discount_message: 'Saved 15% Price Per Bar $2.54',
-      },
-      {
-        unit_size: 5,
-        discount_type: :exact,
-        discount_amount: 12.70,
-        discount_message: 'Saved 15% Price Per Bar $2.54',
-      },
-      {
-        unit_size: 6,
-        discount_type: :exact,
-        discount_amount: 11.16,
-        discount_message: 'Saved 25% Price Per Bar $2.23',
-      },
-      {
-        unit_size: 7,
-        discount_type: :exact,
-        discount_amount: 11.21,
-        discount_message: 'Saved 25% Price Per Bar $2.24',
-      },
-      {
-        unit_size: 8,
-        discount_type: :exact,
-        discount_amount: 11.21,
-        discount_message: 'Saved 25% Price Per Bar $2.24',
-      },
-      {
-        unit_size: 9,
-        discount_type: :exact,
-        discount_amount: 11.21,
-        discount_message: 'Saved 25% Price Per Bar $2.24',
-      },
-      {
-        unit_size: 10,
-        discount_type: :exact,
-        discount_amount: 10.49,
-        discount_message: 'Saved 30% Price Per Bar $2.10',
-      },
-      {
-        unit_size: 11,
-        discount_type: :exact,
-        discount_amount: 10.46,
-        discount_message: 'Saved 30% Price Per Bar $2.09',
-      },
-      {
-        unit_size: 12,
-        discount_type: :exact,
-        discount_amount: 10.41,
-        discount_message: 'Saved 30% Price Per Bar $2.08',
+        threshold: 100,
+        discount_type: :percent,
+        discount_amount: 10,
+        discount_message: 'Build A Box Bundle 10% OFF',
       },
     ],
   },
 ]
 
-# ================================ Script Code (do not edit) ================================
-# ================================================================
-# ProductSelector
-#
-# Finds matching products by the entered criteria.
-# ================================================================
-class ProductSelector
+PRODUCT_DISCOUNT_TIERS_SUBSCRIPTION = [
+  {
+    product_selector_match_type: :include,
+    product_selector_type: :properties,
+    product_selectors: ["Build A Box Subscription"],
+		product_selectors_key: "_bundle",
+    tiers: [
+      {
+        threshold: 40,
+        discount_type: :percent,
+        discount_amount: 5,
+        discount_message: 'Build A Box Subscription 5% OFF',
+      },
+      {
+        threshold: 90,
+        discount_type: :percent,
+        discount_amount: 10,
+        discount_message: 'Build A Box Subscription 10% OFF',
+      },
+    ],
+  },
+]
+
+class ProductSelectorBA
   def initialize(match_type, selector_type, selectors)
     @match_type = match_type
     @comparator = match_type == :include ? 'any?' : 'none?'
@@ -174,29 +60,44 @@ class ProductSelector
     end
   end
 
-  def sku_unit_size(line_item)
-    product_type = line_item.variant.product.product_type;
+  def tag(line_item)
     product_tags = line_item.variant.product.tags.map { |tag| tag.downcase.strip }
     @selectors = @selectors.map { |selector| selector.downcase.strip }
-    skus = line_item.variant.skus[0]
-    total_bars = skus.split("/")[2];
+    (@selectors & product_tags).send(@comparator)
+  end
 
-    if total_bars
-      total_bars = total_bars.to_i
-      is_total_bars = total_bars.is_a? Integer
-  
-      if is_total_bars && product_type == "2022"
-        (@selectors & product_tags).send(@comparator)
-      end
-    end
+	# def properties(line_item)
+  #   @selectors = @selectors.map { |selector| selector.downcase.strip }
+  #   (@match_type == :include) == @selectors.include?(line_item.properties['_bundle'])
+  # end
+
+  def type(line_item)
+    @selectors = @selectors.map { |selector| selector.downcase.strip }
+    (@match_type == :include) == @selectors.include?(line_item.variant.product.product_type.downcase.strip)
+  end
+
+  def vendor(line_item)
+    @selectors = @selectors.map { |selector| selector.downcase.strip }
+    (@match_type == :include) == @selectors.include?(line_item.variant.product.vendor.downcase.strip)
+  end
+
+  def product_id(line_item)
+    (@match_type == :include) == @selectors.include?(line_item.variant.product.id)
+  end
+
+  def variant_id(line_item)
+    (@match_type == :include) == @selectors.include?(line_item.variant.id)
+  end
+
+  def subscription(line_item)
+    !line_item.selling_plan_id.nil?
+  end
+
+  def all(line_item)
+    true
   end
 end
 
-# ================================================================
-# DiscountApplicator
-#
-# Applies the entered discount to the supplied line item.
-# ================================================================
 class DiscountApplicator
   def initialize(discount_type, discount_amount, discount_message)
     @discount_type = discount_type
@@ -212,8 +113,6 @@ class DiscountApplicator
   def apply(line_item)
     new_line_price = if @discount_type == :percent
       line_item.line_price * @discount_amount
-    elsif @discount_type == :exact
-      @discount_amount * line_item.quantity
     else
       [line_item.line_price - (@discount_amount * line_item.quantity), Money.zero].max
     end
@@ -222,40 +121,40 @@ class DiscountApplicator
   end
 end
 
-# ================================================================
-# TieredProductDiscountByQuantityCampaign
-#
-# If the total quantity of matching items is greater than (or
-# equal to) an entered threshold, the associated discount is
-# applied to each matching item.
-# ================================================================
-class TieredProductDiscountByQuantityCampaign
+class TieredProductDiscountByProductSpendCampaign
   def initialize(campaigns)
     @campaigns = campaigns
   end
 
   def run(cart)
     @campaigns.each do |campaign|
-      product_selector = ProductSelector.new(
-        campaign[:product_selector_match_type],
-        campaign[:product_selector_type],
-        campaign[:product_selectors],
-      )
+      if campaign[:product_selector_type] == :all
+        total_applicable_cost = cart.subtotal_price
+        applicable_items = cart.line_items
+			elsif campaign[:product_selector_type] == :properties
+					applicable_items = cart.line_items.select { |line_item| 
+						line_item.properties and line_item.properties[campaign[:product_selectors_key]] == campaign[:product_selectors][0]
+					}
 
-      applicable_items = cart.line_items.select { |line_item| product_selector.match?(line_item) }
+					next if applicable_items.nil?
 
-      next if applicable_items.nil?
+					total_applicable_cost = applicable_items.map(&:line_price).reduce(Money.zero, :+)
+      else
+        product_selector = ProductSelectorBA.new(
+          campaign[:product_selector_match_type],
+          campaign[:product_selector_type],
+          campaign[:product_selectors],
+        )
 
-      cart_total_bars = applicable_items.reduce(0) { | sum, line_item | 
-        skus = line_item.variant.skus[0];
-        total_bars = skus.split("/")[2].to_i;
-        sum + (total_bars * line_item.quantity);
-      }
+        applicable_items = cart.line_items.select { |line_item| product_selector.match?(line_item) }
 
-      cart_total_unit = cart_total_bars / 5;
+        next if applicable_items.nil?
 
-      tiers = campaign[:tiers].sort_by { |tier| tier[:unit_size] }.reverse
-      applicable_tier = tiers.find { |tier| tier[:unit_size] <= cart_total_unit }
+        total_applicable_cost = applicable_items.map(&:line_price).reduce(Money.zero, :+)
+      end
+
+      tiers = campaign[:tiers].sort_by { |tier| tier[:threshold] }.reverse
+      applicable_tier = tiers.find { |tier|  total_applicable_cost >= (Money.new(cents: 100) * tier[:threshold]) }
 
       next if applicable_tier.nil?
 
@@ -272,50 +171,14 @@ class TieredProductDiscountByQuantityCampaign
   end
 end
 
-
-#
-# Rebuy Upsell Discount
-#
-
-# Campaign - Dynamic Discounts
-class RebuyDynamicDiscount
-  def initialize(discount_type, discount_amount, success_message)
-    @discount_type = discount_type
-    @discount_amount = discount_amount
-    @success_message = success_message
-  end
-
-  def run(cart)
-    cart.line_items.each do |line_item|
-      next if line_item.properties["_UpsellSource"].nil? or line_item.properties["_UpsellSource"] != "Rebuy"
-
-      if !line_item.properties["_UpsellDiscount"].nil?
-        @discount_amount = line_item.properties["_UpsellDiscount"].to_i
-      end
-
-      discount = (Money.new(cents: 0))
-
-      if @discount_type == 'percentage'
-        discount = (line_item.line_price * (@discount_amount / 100))
-      elsif @discount_type == 'fixed'
-        discount = (Money.new(cents: 100) * @discount_amount)
-      end
-
-      line_item.change_line_price(line_item.line_price - discount, message: @success_message)
-    end
-  end
-end
-
-
 CAMPAIGNS = [
-  RebuyDynamicDiscount.new('percentage', 10, 'Limited-Time Offer'),
-  TieredProductDiscountByQuantityCampaign.new(PRODUCT_DISCOUNT_TIERS),
+  TieredProductDiscountByProductSpendCampaign.new(PRODUCT_DISCOUNT_TIERS),
+  TieredProductDiscountByProductSpendCampaign.new(PRODUCT_DISCOUNT_TIERS_SUBSCRIPTION),
 ]
 
-# Run each campaign
 CAMPAIGNS.each do |campaign|
   campaign.run(Input.cart)
 end
 
-
 Output.cart = Input.cart
+
